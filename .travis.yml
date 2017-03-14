@@ -20,7 +20,6 @@ before_deploy:
   - ./linuxdeployqt*.AppImage ./appdir/usr/share/applications/*.desktop -appimage -qmldir=$(readlink -f /opt/qt5*/qml/)
   - find ./appdir -executable -type f -exec ldd {} \; | grep " => /usr" | cut -d " " -f 2-3 | sort | uniq
   - curl --upload-file ./notepadqq*.AppImage https://transfer.sh/notepadqq-git.$(git rev-parse --short HEAD)-x86_64.AppImage
-  - #
   - "mv out/release out/notepadqq-${NQQ_VERSION}-linux-x64 && tar -zcf notepadqq-${NQQ_VERSION}-linux-x64.tar.gz -C out notepadqq-${NQQ_VERSION}-linux-x64"
   - "files=$(ls); mkdir notepadqq-${NQQ_VERSION}-source && cp -r $files notepadqq-${NQQ_VERSION}-source"
   - "find notepadqq-${NQQ_VERSION}-source \\( -name '.git*' -o -name '.*ignore' -o -name '.travis.yml' \\) -delete"
