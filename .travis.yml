@@ -9,9 +9,18 @@ before_install:
   - sudo apt-get -qq update
   - sudo apt-get install -y qtbase5-dev libqt5webkit5-dev libqt5svg5-dev qttools5-dev-tools
 script:
-  - "./configure && make"
+  - "./configure PREFIX=/usr && make -j4"
+  - sudo make INSTALL_ROOT=appdir install ; sudo chown -R $USER appdir ; find appdir/
   - "./src/ui-tests/ui-tests"
 before_deploy:
+  - wget -c "https://github.com/probonopd/linuxdeployqt/releases/download/continuous/linuxdeployqt-continuous-x86_64.AppImage" 
+  - chmod a+x linuxdeployqt*.AppImage
+  - unset QTDIR; unset QT_PLUGIN_PATH ; unset LD_LIBRARY_PATH
+  - ./linuxdeployqt*.AppImage ./appdir/usr/share/applications/*.desktop -bundle-non-qt-libs -qmldir=$(readlink -f /opt/qt5*/qml/)
+  - ./linuxdeployqt*.AppImage ./appdir/usr/share/applications/*.desktop -appimage -qmldir=$(readlink -f /opt/qt5*/qml/)
+  - find ./appdir -executable -type f -exec ldd {} \; | grep " => /usr" | cut -d " " -f 2-3 | sort | uniq
+  - curl --upload-file ./notepadqq*.AppImage https://transfer.sh/notepadqq-git.$(git rev-parse --short HEAD)-x86_64.AppImage
+  - #
   - "mv out/release out/notepadqq-${NQQ_VERSION}-linux-x64 && tar -zcf notepadqq-${NQQ_VERSION}-linux-x64.tar.gz -C out notepadqq-${NQQ_VERSION}-linux-x64"
   - "files=$(ls); mkdir notepadqq-${NQQ_VERSION}-source && cp -r $files notepadqq-${NQQ_VERSION}-source"
   - "find notepadqq-${NQQ_VERSION}-source \\( -name '.git*' -o -name '.*ignore' -o -name '.travis.yml' \\) -delete"
