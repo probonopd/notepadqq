@@ -10,15 +10,16 @@ before_install:
   - sudo apt-get install -y qtbase5-dev libqt5webkit5-dev libqt5svg5-dev qttools5-dev-tools
 script:
   - "./configure PREFIX=/usr && make -j4"
-  - sudo make INSTALL_ROOT=appdir install ; cd /home/travis/build/*/notepadqq/ ; find . | grep appdir ; sudo chown -R $USER appdir ; find appdir/
+  - # Dear upstream, please change this so that the next line installs to ./appdir rather than to ./src/ui/appdir 
+  - sudo make INSTALL_ROOT=appdir install ; cd /home/travis/build/*/notepadqq/ ; sudo chown -R $USER ./src/ui/appdir ; find ./src/ui/appdir/
   - # "./src/ui-tests/ui-tests"
 before_deploy:
   - wget -c "https://github.com/probonopd/linuxdeployqt/releases/download/continuous/linuxdeployqt-continuous-x86_64.AppImage" 
   - chmod a+x linuxdeployqt*.AppImage
   - unset QTDIR; unset QT_PLUGIN_PATH ; unset LD_LIBRARY_PATH
-  - ./linuxdeployqt*.AppImage ./appdir/usr/share/applications/*.desktop -bundle-non-qt-libs -qmldir=$(readlink -f /opt/qt5*/qml/)
-  - ./linuxdeployqt*.AppImage ./appdir/usr/share/applications/*.desktop -appimage -qmldir=$(readlink -f /opt/qt5*/qml/)
-  - find ./appdir -executable -type f -exec ldd {} \; | grep " => /usr" | cut -d " " -f 2-3 | sort | uniq
+  - ./linuxdeployqt*.AppImage ./src/ui/appdir/usr/share/applications/*.desktop -bundle-non-qt-libs -qmldir=$(readlink -f /opt/qt5*/qml/)
+  - ./linuxdeployqt*.AppImage ./src/ui/appdir/usr/share/applications/*.desktop -appimage -qmldir=$(readlink -f /opt/qt5*/qml/)
+  - find ./src/ui/appdir -executable -type f -exec ldd {} \; | grep " => /usr" | cut -d " " -f 2-3 | sort | uniq
   - curl --upload-file ./notepadqq*.AppImage https://transfer.sh/notepadqq-git.$(git rev-parse --short HEAD)-x86_64.AppImage
   - "mv out/release out/notepadqq-${NQQ_VERSION}-linux-x64 && tar -zcf notepadqq-${NQQ_VERSION}-linux-x64.tar.gz -C out notepadqq-${NQQ_VERSION}-linux-x64"
   - "files=$(ls); mkdir notepadqq-${NQQ_VERSION}-source && cp -r $files notepadqq-${NQQ_VERSION}-source"
