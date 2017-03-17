@@ -10,7 +10,7 @@ before_install:
   - sudo apt-get install -y qtbase5-dev libqt5webkit5-dev libqt5svg5-dev qttools5-dev-tools
 script:
   - "./configure PREFIX=/usr && make -j4"
-  - sudo make INSTALL_ROOT=appdir install ; sudo chown -R $USER appdir ; find appdir/
+  - sudo make INSTALL_ROOT=appdir install ; cd .. ; sudo chown -R $USER appdir ; find appdir/
   - # "./src/ui-tests/ui-tests"
 before_deploy:
   - wget -c "https://github.com/probonopd/linuxdeployqt/releases/download/continuous/linuxdeployqt-continuous-x86_64.AppImage" 
