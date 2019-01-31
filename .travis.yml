@@ -7,7 +7,7 @@ env:
   - NQQ_VERSION=${TRAVIS_TAG:-${TRAVIS_COMMIT}}
 before_install:
   - sudo apt-get -qq update
-  - sudo apt-get install -y qtbase5-dev libqt5webkit5-dev libqt5svg5-dev qttools5-dev-tools
+  - sudo apt-get install -y qtbase5-dev libqt5webkit5-dev libqt5svg5-dev qttools5-dev-tools libuchardet-dev
 script:
   - ./configure PREFIX=/usr && make -j4
   - # Dear upstream, please change this so that the next line installs to ./appdir rather than to ./src/ui/appdir 
