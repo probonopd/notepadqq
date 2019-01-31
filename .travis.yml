@@ -1,40 +1,39 @@
 language: cpp
-dist: trusty
-sudo: required
-os:
-  - linux
-env:
-  - NQQ_VERSION=${TRAVIS_TAG:-${TRAVIS_COMMIT}}
-before_install:
-  - sudo apt-get -qq update
-  - sudo apt-get install -y qtbase5-dev libqt5webkit5-dev libqt5svg5-dev qttools5-dev-tools
-script:
-  - ./configure PREFIX=/usr && make -j4
-  - # Dear upstream, please change this so that the next line installs to ./appdir rather than to ./src/ui/appdir 
-  - sudo make INSTALL_ROOT=appdir install ; sudo chown -R $USER ./src/ui/appdir ; find ./src/ui/appdir/
-  - mv ./src/ui/appdir/usr/local/* ./src/ui/appdir/usr/ # Dear upstream, please change this so that this is not needed
-  - # "./src/ui-tests/ui-tests"
-  - wget -c "https://github.com/probonopd/linuxdeployqt/releases/download/continuous/linuxdeployqt-continuous-x86_64.AppImage" 
-  - chmod a+x linuxdeployqt*.AppImage
-  - unset QTDIR; unset QT_PLUGIN_PATH ; unset LD_LIBRARY_PATH
-  - ./linuxdeployqt*.AppImage ./src/ui/appdir/usr/share/applications/*.desktop -bundle-non-qt-libs -qmldir=$(readlink -f /opt/qt5*/qml/)
-  - ./linuxdeployqt*.AppImage ./src/ui/appdir/usr/share/applications/*.desktop -appimage -qmldir=$(readlink -f /opt/qt5*/qml/)
-  - find ./src/ui/appdir -executable -type f -exec ldd {} \; | grep " => /usr" | cut -d " " -f 2-3 | sort | uniq
-before_deploy:
-  - curl --upload-file ./notepadqq*.AppImage https://transfer.sh/notepadqq-git.$(git rev-parse --short HEAD)-x86_64.AppImage
-  - "mv out/release out/notepadqq-${NQQ_VERSION}-linux-x64 && tar -zcf notepadqq-${NQQ_VERSION}-linux-x64.tar.gz -C out notepadqq-${NQQ_VERSION}-linux-x64"
-  - "files=$(ls); mkdir notepadqq-${NQQ_VERSION}-source && cp -r $files notepadqq-${NQQ_VERSION}-source"
-  - "find notepadqq-${NQQ_VERSION}-source \\( -name '.git*' -o -name '.*ignore' -o -name '.travis.yml' \\) -delete"
-  - "make -C notepadqq-${NQQ_VERSION}-source distclean"
-  - "tar -zcf notepadqq-${NQQ_VERSION}-source.tar.gz -C out notepadqq-${NQQ_VERSION}-source"
-deploy:
-  provider: releases
-  api_key:
-    secure: OCEuXR1a2dDHKKQpnOeSoeWZeL0clf0eVUZt5QbrnkyvL3/iUHXjYbdVBEGrbuldffLy9YOC63viqh/r7Ak+7k/suG1BxwGczbvtMBvRyUOOI48YX90Ss+JUcpvJVNLoirDqA1hPMho5Rmydu+DFRlpjADfg3KtZZZA+8Xz8Uek=
-  file:
-    - "notepadqq-${NQQ_VERSION}-linux-x64.tar.gz"
-    - "notepadqq-${NQQ_VERSION}-source.tar.gz"
-  skip_cleanup: true
-  on:
-    repo: notepadqq/notepadqq
-    tags: true
+sudo: false
+
+jobs:
+  include:
+    - stage: build
+      os: linux
+      env: NQQ_BUILD_TYPE=FORMAT
+      script: .travis/script.sh
+      addons:
+        apt:
+          sources:
+            - llvm-toolchain-trusty-6.0
+            - ubuntu-toolchain-r-test
+          packages:
+            - clang-format-6.0
+    - stage: build
+      os: linux
+      env: NQQ_BUILD_TYPE=COMPILE
+      sudo: true
+      script: .travis/script.sh
+      services:
+        - docker
+    - stage: deploy
+      os: osx
+      env:
+        - NQQ_BUILD_TYPE=DEPLOY
+        - NQQ_VERSION=${TRAVIS_TAG:-${TRAVIS_COMMIT}}
+      script: .travis/macos-script.sh
+      deploy:
+        provider: releases
+        api_key:
+          secure: C8hJM/xaT4+pm8/X84C+bZjXS64C8H+43IpfLp5nzGMQzzTfaxq5uHS2ufi6qaS/1EIPyiw/j3ng12UDfcICduNT4h9hUgUMTCMqKhP4Td2FSgk99LnXWwa2w7+JTzDNVm0cnqXYUTSA/tg0KN8hMa1Q44RSl6KwYyCvy8rtWQpxSQi2dCVIs6vYcQXts/x26+MDuD/RpOuZseh3+hN5hSx6Ta1SjUz/mCtoSlRjCQz+5GO4mawGQW9PGSHFBF4+/krYqOKZ12ADNT/5W3UqWZmu0JB55VP+w0Q2UdfWM/4qioz3hUS13FrAqzKOhbteWrNGtIahosCUZbg+UwJQU8GctuwjBrY7dElyxks2uFUMc4KuwEKjudhMY4Y7Ui0cAvy46Avs9iOhnCjR+0mZNwz5umYqU1bb7aYu0fXOG1VmRUbVTsXTlaW4WDGrBmgW4Ac8tosL6f2DoSbImTX+vxYc/9BSTegPKZSe4jHlMkbCR0DS8mCuTf/e+67sjAnxv0fMHFMY20cporrThEDPwYxB3zS3AHJ/oOQjH5fXieqJkQIW0BxSAKDZ99dKeu1hE+CQhezfIxX2I5V7bK0Tq+MV4LA/q56GPuPqyuENQH3W3iCIwOjb1az8DoxSguACPp4AaP75VdEW6weosPn/C/vaI1XVGZG5V0qvirc/Zy4=
+        file:
+          - "out/release/notepadqq-${NQQ_VERSION}.dmg"
+        skip_cleanup: true
+        on:
+          repo: notepadqq/notepadqq
+          tags: true
