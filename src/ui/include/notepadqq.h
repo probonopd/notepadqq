@@ -23,19 +23,20 @@
 #ifndef NOTEPADQQ_H
 #define NOTEPADQQ_H
 
-#include <QObject>
-#include <QString>
-#include <QFile>
-#include <QProcessEnvironment>
-#include <QApplication>
-#include <QUrl>
-#include <QCommandLineParser>
-#include <QList>
 #include "include/mainwindow.h"
 
-#define POINTVERSION "1.0.1" // major.minor.revision
+#include <QApplication>
+#include <QCommandLineParser>
+#include <QFile>
+#include <QList>
+#include <QObject>
+#include <QProcessEnvironment>
+#include <QString>
+#include <QUrl>
 
-#define COPYRIGHT_YEAR "2017"
+#define POINTVERSION "1.4.8" // major.minor.revision
+
+#define COPYRIGHT_YEAR "2018"
 
 #define MIB_UTF_8 106
 
@@ -65,14 +66,16 @@ public:
     static QString fileNameFromUrl(const QUrl &url);
     static QSharedPointer<QCommandLineParser> getCommandLineArgumentsParser(const QStringList &arguments);
 
-    static bool oldQt();
-    static void setOldQt(bool oldQt);
-
     static void showQtVersionWarning(bool showCheckBox, QWidget *parent = 0);
 
     static QString extensionsPath();
 
     static QList<QString> translations();
+
+    /**
+     * @brief Print environment information for debugging purposes.
+     */
+    static void printEnvironmentInfo();
 
 signals:
     void newWindow(MainWindow *window);
@@ -81,8 +84,6 @@ private:
     Notepadqq() {}
     Notepadqq(Notepadqq const&);      // Don't implement
     void operator=(Notepadqq const&); // Don't implement
-
-    static bool m_oldQt;
 };
 
 #endif // NOTEPADQQ_H

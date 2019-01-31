@@ -1,4 +1,5 @@
 #include "include/Sessions/persistentcache.h"
+
 #include "include/notepadqq.h"
 
 QString PersistentCache::cacheSessionPath() {
@@ -9,6 +10,11 @@ QString PersistentCache::cacheSessionPath() {
 QString PersistentCache::cacheDirPath() {
     static QString tabpath = QFileInfo(QSettings().fileName()).dir().absolutePath().append("/tabCache");
     return tabpath;
+}
+
+QString PersistentCache::backupDirPath() {
+    static QString path = QFileInfo(QSettings().fileName()).dir().absolutePath().append("/backupCache");
+    return path;
 }
 
 QUrl PersistentCache::createValidCacheName(const QDir& parent, const QString &fileName)

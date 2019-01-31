@@ -1,8 +1,10 @@
 #include "include/editortabwidget.h"
+
 #include "include/iconprovider.h"
-#include <QTabBar>
+
 #include <QApplication>
 #include <QFileInfo>
+#include <QTabBar>
 
 #ifdef QT_DEBUG
 #include <QElapsedTimer>
@@ -19,8 +21,16 @@ EditorTabWidget::EditorTabWidget(QWidget *parent) :
     this->setTabBarHidden(false);
     this->setTabBarHighlight(false);
 
+    connect(this, &EditorTabWidget::currentChanged, this, &EditorTabWidget::on_currentTabChanged);
+
+#ifdef Q_OS_MACX
+    this->tabBar()->setExpanding(true);
+    this->setUsesScrollButtons(true);
+#else
     QString style = QString("QTabBar::tab{min-width:100px; height:24px;}");
     setStyleSheet(style);
+#endif
+
 }
 
 EditorTabWidget::~EditorTabWidget()
@@ -68,6 +78,34 @@ void EditorTabWidget::disconnectEditorSignals(Editor *editor)
                this, &EditorTabWidget::on_fileNameChanged);
 }
 
+
+QString EditorTabWidget::tabText(Editor* editor) const
+{
+    return editor->tabName();
+}
+
+QString EditorTabWidget::tabText(int index) const
+{
+    return editor(index)->tabName();
+}
+
+void EditorTabWidget::setTabText(int index, const QString& text)
+{
+    QTabWidget::setTabText(index, text);
+    editor(index)->setTabName(text);
+}
+
+
+void EditorTabWidget::setTabText(Editor* editor, const QString& text)
+{
+    int idx = indexOf(editor);
+
+    if(idx >= 0) {
+        QTabWidget::setTabText(idx, text);
+        editor->setTabName(text);
+    }
+}
+
 int EditorTabWidget::transferEditorTab(bool setFocus, EditorTabWidget *source, int tabIndex)
 {
     return this->rawAddEditorTab(setFocus, QString(), source, tabIndex);
@@ -107,7 +145,12 @@ int EditorTabWidget::rawAddEditorTab(const bool setFocus, const QString &title, 
     }
 
     m_editorPointers.insert(editor.data(), editor);
-    int index = addTab(editor.data(), create ? title : oldText);
+
+    // Calling adTab() triggers MainWindow::refreshEditorUiInfo. We want to set the tab title
+    // before that happens so it can be displayed properly.
+    const QString& tabTitle = create ? title : oldText;
+    editor->setTabName(tabTitle);
+    int index = addTab(editor.data(), tabTitle);
 
     if (!create) {
         source->disconnectEditorSignals(editor.data());
@@ -149,14 +192,14 @@ int EditorTabWidget::findOpenEditorByUrl(const QUrl &filename)
 
     for (int i = 0; i < count(); i++) {
         Editor *editor = this->editor(i);
-        if (editor->fileName() == filename)
+        if (editor->filePath() == filename)
             return i;
     }
 
     return -1;
 }
 
-Editor *EditorTabWidget::editor(int index)
+Editor *EditorTabWidget::editor(int index) const
 {
     return dynamic_cast<Editor *>(this->widget(index));
 }
@@ -199,6 +242,14 @@ void EditorTabWidget::tabRemoved(int)
 Editor *EditorTabWidget::currentEditor()
 {
     return editor(currentIndex());
+}
+
+QString EditorTabWidget::tabTextFromEditor(Editor* ed)
+{
+    for(int i=0; i<count(); ++i)
+        if (editor(i) == ed) return tabText(i);
+
+    return QString();
 }
 
 qreal EditorTabWidget::zoomFactor() const
@@ -305,4 +356,18 @@ void EditorTabWidget::on_fileNameChanged(const QUrl & /*oldFileName*/, const QUr
 
     setTabText(index, fileName);
     setTabToolTip(index, fullFileName);
+}
+
+int EditorTabWidget::formerTabIndex()
+{
+    return m_formerTabIndex;
+}
+
+void EditorTabWidget::on_currentTabChanged(int index)
+{
+    // Store current index to become former index on next tab change.
+    if (m_mostRecentTabIndex != index) {
+        m_formerTabIndex = m_mostRecentTabIndex;
+        m_mostRecentTabIndex = index;
+    }
 }

@@ -1,22 +1,28 @@
+#include "include/EditorNS/editor.h"
+#include "include/Extensions/extensionsloader.h"
+#include "include/Sessions/backupservice.h"
+#include "include/Sessions/persistentcache.h"
+#include "include/Sessions/sessions.h"
 #include "include/globals.h"
 #include "include/mainwindow.h"
 #include "include/notepadqq.h"
-#include "include/EditorNS/editor.h"
-#include "include/singleapplication.h"
-#include "include/Extensions/extensionsloader.h"
 #include "include/nqqsettings.h"
-#include <QObject>
-#include <QFile>
-#include <QtGlobal>
-#include <QTranslator>
-#include <QLocale>
+#include "include/singleapplication.h"
+#include "include/stats.h"
+
 #include <QDateTime>
+#include <QFileInfo>
+#include <QLocale>
+#include <QObject>
+#include <QTranslator>
+#include <QtGlobal>
+
+#include <unistd.h> // For getuid
 
 #ifdef QT_DEBUG
 #include <QElapsedTimer>
 #endif
 
-void checkQtVersion();
 void forceDefaultSettings();
 void loadExtensions();
 
@@ -34,11 +40,19 @@ int main(int argc, char *argv[])
     // Initialize random number generator
     qsrand(QDateTime::currentDateTimeUtc().time().msec() + qrand());
 
+#if QT_VERSION > QT_VERSION_CHECK(5, 6, 0)
+    SingleApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
+    SingleApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
+#endif
     SingleApplication a(argc, argv);
 
     QCoreApplication::setOrganizationName("Notepadqq");
     QCoreApplication::setApplicationName("Notepadqq");
     QCoreApplication::setApplicationVersion(Notepadqq::version);
+
+#if QT_VERSION >= QT_VERSION_CHECK(5, 7, 0)
+    QGuiApplication::setDesktopFileName("notepadqq");
+#endif
 
     QSettings::setDefaultFormat(QSettings::IniFormat);
 
@@ -71,7 +85,21 @@ int main(int argc, char *argv[])
         settings.General.setLocalization("en");
     }
     // Check for "run-and-exit" options like -h or -v
-    Notepadqq::getCommandLineArgumentsParser(QApplication::arguments());
+    const auto parser = Notepadqq::getCommandLineArgumentsParser(QApplication::arguments());
+
+    if (parser->isSet("print-debug-info")) {
+        Notepadqq::printEnvironmentInfo();
+        return EXIT_SUCCESS;
+    }
+
+    // Check if we're running as root
+    if( getuid() == 0 && !parser->isSet("allow-root") ) {
+        qWarning() << QObject::tr(
+            "Notepadqq will ask for root privileges whenever they are needed if either 'kdesu' or 'gksu' are installed."
+            " Running Notepadqq as root is not recommended. Use --allow-root if you really want to.");
+
+        return EXIT_SUCCESS;
+    }
 
     if (a.attachToOtherInstance()) {
         return EXIT_SUCCESS;
@@ -82,7 +110,7 @@ int main(int argc, char *argv[])
         QSharedPointer<QCommandLineParser> parser = Notepadqq::getCommandLineArgumentsParser(arguments);
         if (parser->isSet("new-window")) {
             // Open a new window
-            MainWindow *win = new MainWindow(workingDirectory, arguments, 0);
+            MainWindow *win = new MainWindow(workingDirectory, arguments, nullptr);
             win->show();
         } else {
             // Send the args to the last focused window
@@ -103,16 +131,11 @@ int main(int argc, char *argv[])
     // There are no other instances: start a new server.
     a.startServer();
 
-    Editor::addEditorToBuffer();
-
-    QFile file(Notepadqq::editorPath());
-    if (!file.open(QIODevice::ReadOnly)) {
-        qCritical() << "Can't open file: " + file.fileName();
+    QFileInfo finfo(Notepadqq::editorPath());
+    if (!finfo.isReadable()) {
+        qCritical() << "Can't open file: " + finfo.filePath();
         return EXIT_FAILURE;
     }
-    file.close();
-
-    checkQtVersion();
 
     if (Extensions::ExtensionsLoader::extensionRuntimePresent()) {
         Extensions::ExtensionsLoader::startExtensionsServer();
@@ -123,30 +146,40 @@ int main(int argc, char *argv[])
 #endif
     }
 
-    MainWindow *w = new MainWindow(QApplication::arguments(), 0);
-    w->show();
+    // Check whether Nqq was properly shut down. If not, attempt to restore from the last autosave backup if enabled.
+    const bool wantToRestore = settings.General.getAutosaveInterval() > 0 && BackupService::detectImproperShutdown();
+    if (wantToRestore) {
+        // Attempt to restore from backup. Don't forget to handle commandline arguments.
+        if (BackupService::restoreFromBackup())
+            MainWindow::instances().back()->openCommandLineProvidedUrls(QDir::currentPath(), QApplication::arguments());
+    }
+
+    // If we don't have a window by now (e.g. through restoring backup), we'll create one normally.
+    if (MainWindow::instances().isEmpty()) {
+        MainWindow* wnd = new MainWindow(QStringList(), nullptr);
+
+        if (settings.General.getRememberTabsOnExit()) {
+            Sessions::loadSession(wnd->getDocEngine(), wnd->topEditorContainer(), PersistentCache::cacheSessionPath());
+        }
+
+        wnd->openCommandLineProvidedUrls(QDir::currentPath(), QApplication::arguments());
+        wnd->show();
+    }
+
+    if (settings.General.getAutosaveInterval() > 0)
+        BackupService::enableAutosave(settings.General.getAutosaveInterval());
 
 #ifdef QT_DEBUG
     qint64 __aet_elapsed = __aet_timer.nsecsElapsed();
     qDebug() << QString("Started in " + QString::number(__aet_elapsed / 1000 / 1000) + "msec").toStdString().c_str();
 #endif
 
-    if (Notepadqq::oldQt() && settings.General.getCheckVersionAtStartup()) {
-        Notepadqq::showQtVersionWarning(true, w);
-    }
+    Stats::init();
 
-    return a.exec();
-}
+    auto retVal = a.exec();
 
-void checkQtVersion()
-{
-    QString runtimeVersion = qVersion();
-    if (runtimeVersion.startsWith("5.0") ||
-            runtimeVersion.startsWith("5.1") ||
-            runtimeVersion.startsWith("5.2")) {
-
-        Notepadqq::setOldQt(true);
-    }
+    BackupService::clearBackupData(); // Clear autosave cache on proper shutdown
+    return retVal;
 }
 
 void forceDefaultSettings()

@@ -1,12 +1,13 @@
 #ifndef DOCENGINE_H
 #define DOCENGINE_H
 
-#include <QObject>
-#include <QFileSystemWatcher>
-#include <QFile>
-#include <QUrl>
 #include "editortabwidget.h"
 #include "topeditorcontainer.h"
+
+#include <QFile>
+#include <QFileSystemWatcher>
+#include <QObject>
+#include <QUrl>
 
 /**
  * @brief Provides methods for managing documents
@@ -18,7 +19,7 @@ class DocEngine : public QObject
 {
     Q_OBJECT
 public:
-    explicit DocEngine(TopEditorContainer *topEditorContainer, QObject *parent = 0);
+    explicit DocEngine(TopEditorContainer *topEditorContainer, QObject *parent = nullptr);
     ~DocEngine();
 
     struct DecodedText {
@@ -28,13 +29,82 @@ public:
         bool error = false;
     };
 
+    enum FileSizeAction {
+        FileSizeActionAsk,
+        FileSizeActionYesToAll,
+        FileSizeActionNoToAll
+    };
+
+    enum ReloadAction {
+        ReloadActionDont,   // Don't reload documents, instead just focus them
+        ReloadActionAsk,    // Ask user to reload if it would cause unsaved changes to be discarded
+        ReloadActionDo      // Always reload documents
+    };
+
+    /**
+     * @brief The DocumentLoader struct is an aggregation of all possible arguments for document loading.
+     *        Only setTabWidget and setUrl(s) are necessary settings. All others have sensible defaults.
+     *        Create new instances of this class using DocEngine::getDocumentLoader()
+     */
+    struct DocumentLoader {
+        // Set the URL(s) of files to be loaded
+        DocumentLoader& setUrl(const QUrl& url) { this->urls << url; return *this; }
+        DocumentLoader& setUrls(const QList<QUrl>& urls) { this->urls = urls; return *this; }
+
+        // Set how files should be handled that trigger a file-size warning.
+        DocumentLoader& setFileSizeWarning(FileSizeAction fsa) { fileSizeAction = fsa; return *this; }
+
+        // If true, the documents' parent directory will be remembered as the last opened dir.
+        DocumentLoader& setRememberLastDir(bool rld) { rememberLastDir = rld; return *this; }
+
+        // Set if document has Byte Order Marks set
+        DocumentLoader& setBOM(bool setBom) { bom = setBom; return *this; }
+
+        // Sets the TextCodec to decode the file as.
+        DocumentLoader& setTextCodec(QTextCodec* codec) { textCodec = codec; return *this; }
+
+        // Set the TabWidget the documents should be loaded into
+        DocumentLoader& setTabWidget(EditorTabWidget* tw) { tabWidget = tw; return *this; }
+
+        // Determines how already opened documents should be treated.
+        DocumentLoader& setReloadAction(ReloadAction reload) { reloadAction = reload; return *this; }
+
+        /**
+         * @brief execute Runs the load operation.
+         */
+        QPromise<void> execute() {
+            Q_ASSERT(tabWidget != nullptr);
+            return docEngine.loadDocuments(*this);
+        }
+
+        // See here for the arguments' default values
+        QList<QUrl> urls;
+        EditorTabWidget* tabWidget      = nullptr;
+        QTextCodec* textCodec           = nullptr;
+        ReloadAction reloadAction       = ReloadActionAsk;
+        bool rememberLastDir            = true;
+        bool bom                        = false;
+        FileSizeAction fileSizeAction   = FileSizeActionAsk;
+
+    private:
+        friend class DocEngine;
+        DocumentLoader(DocEngine& eng) : docEngine(eng) {}
+        DocEngine& docEngine;
+    };
+
+    /**
+     * @brief getDocumentLoader Creates a new DocumentLoader with this DocEngine as its parent.
+     *        Use this object to load or reload documents.
+     */
+    DocumentLoader getDocumentLoader() { return DocumentLoader(*this); }
+
     /**
      * Describes the result of a save process.
      * For example, if the user cancels the save dialog, \p saveFileResult_Canceled is returned.
      */
     enum saveFileResult {
-         saveFileResult_Saved       /** The file was saved  */
-        ,saveFileResult_Canceled    /** The save process was canceled */
+         saveFileResult_Saved,      /** The file was saved  */
+        saveFileResult_Canceled     /** The save process was canceled */
     };
 
     /**
@@ -55,30 +125,26 @@ public:
     QPair<int, int> findOpenEditorByUrl(const QUrl &filename) const;
 
     void monitorDocument(Editor *editor);
+    void monitorDocument(QSharedPointer<Editor> editor);
     void unmonitorDocument(Editor *editor);
+    void unmonitorDocument(QSharedPointer<Editor> editor);
     bool isMonitored(Editor *editor);
 
-    bool loadDocuments(const QList<QUrl> &fileNames, EditorTabWidget *tabWidget);
-    bool loadDocument(const QUrl &fileName, EditorTabWidget *tabWidget);
-
-    /**
-     * @brief loadDocumentSilent Works exactly like loadDocument() except that the
-     *        LastSelectedDir setting will not be set to the parent of the document
-     *        to be loaded. Use this function to load files that you do not wish
-     *        the user to be informed about their origin (such as cached files).
-     * @param fileName Path to the text file to be opened.
-     * @param tabWidget The new editor will be added to this TabWidget
-     * @return Always true.
-     */
-    bool loadDocumentSilent(const QUrl &fileName, EditorTabWidget *tabWidget);
-
-    bool reloadDocument(EditorTabWidget *tabWidget, int tab);
-    bool reloadDocument(EditorTabWidget *tabWidget, int tab, QTextCodec *codec, bool bom);
     int addNewDocument(QString name, bool setFocus, EditorTabWidget *tabWidget);
     void reinterpretEncoding(Editor *editor, QTextCodec *codec, bool bom);
     static DocEngine::DecodedText readToString(QFile *file);
     static DocEngine::DecodedText readToString(QFile *file, QTextCodec *codec, bool bom);
     static bool writeFromString(QIODevice *io, const DecodedText &write);
+
+    /**
+     * @brief Write the provided Editor content to the specified IO device, using
+     *        the encoding and the BOM settings specified in the Editor.
+     * @param io
+     * @param editor
+     * @return true if successful, false otherwise
+     */
+    bool write(QIODevice *io, Editor *editor);
+    bool write(QUrl outFileName, Editor *editor);
 
     /**
      * @brief getNewDocumentName
@@ -96,36 +162,18 @@ private:
      *        detect the encoding.
      * @param file
      * @param editor
-     * @return true if successful, false otherwise
+     * @return fulfilled if successful, rejected otherwise
      */
-    bool read(QFile *file, Editor *editor);
-    bool read(QFile *file, Editor *editor, QTextCodec *codec, bool bom);
+    QPromise<void> read(QFile *file, Editor *editor);
+    QPromise<void> read(QFile *file, Editor *editor, QTextCodec *codec, bool bom);
     // FIXME Separate from reload
 
     /**
-     * @brief loadDocuments
-     * @param fileNames
-     * @param tabWidget
-     * @param reload
-     * @param codec
-     * @param bom
-     * @param rememberLastSelectedDir if true, will remember the parent directory of the loaded
-     *        documents as the "last selected dir". This setting is used to display the default
-     *        folder that is shown in the FileDialog when opening files/folders.
-     *        Set this to false to transparently load files (e.g. from a cache directory).
-     *        Default is true.
-     * @return
+     * @brief loadDocuments Responsible for loading or reloading a number of text files.
+     * @param docLoader Contains parameters for document loading. See DocumentLoader class for info.
      */
-    bool loadDocuments(const QList<QUrl> &fileNames, EditorTabWidget *tabWidget, const bool reload, QTextCodec *codec, bool bom, bool rememberLastSelectedDir=true);
+    QPromise<void> loadDocuments(const DocumentLoader& docLoader);
 
-    /**
-     * @brief Write the provided Editor content to the specified IO device, using
-     *        the encoding and the BOM settings specified in the Editor.
-     * @param io
-     * @param editor
-     * @return true if successful, false otherwise
-     */
-    bool write(QIODevice *io, Editor *editor);
     void monitorDocument(const QString &fileName);
     void unmonitorDocument(const QString &fileName);
 
@@ -146,6 +194,22 @@ private:
     static DecodedText decodeText(const QByteArray &contents, QTextCodec *codec, bool contentHasBOM);
 
     static QByteArray getBomForCodec(QTextCodec *codec);
+
+    /**
+     * @brief getAvailableSudoProgram Queries the system to find a supported graphical sudo tool.
+     * @return Empty string if none found. Else either 'kdesu', 'gksu', or 'pkexec'.
+     */
+    QString getAvailableSudoProgram() const;
+
+    /**
+     * @brief Attempts to save the contents of editor to outFileName using a graphical sudo program.
+     * @param sudoProgram Name of the sudo tool to use. Only 'kdesu', 'gksu' and 'pkexec' supported.
+     * @param outFileName Target location of file
+     * @param editor Editor to be saved
+     * @return True if successful.
+     */
+    bool trySudoSave(QString sudoProgram, QUrl outFileName, Editor* editor);
+
 signals:
     /**
      * @brief The monitored file has changed. Remember to call
@@ -176,8 +240,6 @@ signals:
      *        as a recently opened file.
      */
     void documentLoaded(EditorTabWidget *tabWidget, int tab, bool wasAlreadyOpened, bool updateRecentDocuments);
-
-public slots:
 
 private slots:
     void documentChanged(QString fileName);

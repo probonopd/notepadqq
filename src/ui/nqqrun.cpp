@@ -1,17 +1,19 @@
+#include "include/nqqrun.h"
+
+#include "include/iconprovider.h"
+
 #include <QApplication>
 #include <QEasingCurve>
 #include <QFileDialog>
+#include <QGraphicsOpacityEffect>
 #include <QHeaderView>
 #include <QInputDialog>
-#include <QGraphicsOpacityEffect>
 #include <QPainter>
 #include <QPropertyAnimation>
 #include <QPushButton>
 #include <QShortcut>
 #include <QSortFilterProxyModel>
 #include <QVBoxLayout>
-#include "include/nqqrun.h"
-#include "include/iconprovider.h"
 
 using namespace NqqRun;
 
@@ -28,13 +30,14 @@ RunPreferences::RunPreferences(QWidget *parent, Qt::WindowFlags f) :
     RunDelegate *delegate = new RunDelegate(this);
     QShortcut *keyDelete = new QShortcut(QKeySequence("Delete"), this);
 
-    QLabel *info = new QLabel(tr("\
-    <h3>Special placeholders</h3><ul>\
-    <li><em>\%fullpath\%</em> - Full path of the currently active file.</li>\
-    <li><em>\%directory\%</em> - Directory of the currently active file.</li>\
-    <li><em>\%filename\%</em> - Name of the currently active file.</li>\
-    <li><em>\%selection\%</em> - Currently selected text.</li>\
-    </ul>"));
+    QLabel *info = new QLabel("\
+    <h3>" + tr("Special placeholders") + "</h3><ul>\
+    <li><em>\%url\%</em> - " + tr("Full URL of the currently active file.") + "</li>\
+    <li><em>\%path\%</em> - " + tr("Full path of the currently active file.") + "</li>\
+    <li><em>\%directory\%</em> - " + tr("Directory of the currently active file.") + "</li>\
+    <li><em>\%filename\%</em> - " + tr("Name of the currently active file.") + "</li>\
+    <li><em>\%selection\%</em> - " + tr("Currently selected text.") + "</li>\
+    </ul>");
 
     m_commands = new QTableWidget(1, 2);
 
@@ -264,13 +267,14 @@ RunDialog::RunDialog(QWidget *parent, Qt::WindowFlags f) :
     QPushButton *btnCancel = new QPushButton(tr("Cancel"));
     QPushButton *btnSave = new QPushButton(tr("Save..."));
 
-    QLabel *info = new QLabel(tr("\
-    <h3>Special placeholders</h3><ul>\
-    <li><em>\%fullpath\%</em> - Full path of the currently active file.</li>\
-    <li><em>\%directory\%</em> - Directory of the currently active file.</li>\
-    <li><em>\%filename\%</em> - Name of the currently active file.</li>\
-    <li><em>\%selection\%</em> - Currently selected text.</li>\
-    </ul>"));
+    QLabel *info = new QLabel("\
+    <h3>" + tr("Special placeholders") + "</h3><ul>\
+    <li><em>\%url\%</em> - " + tr("Full URL of the currently active file.") + "</li>\
+    <li><em>\%path\%</em> - " + tr("Full path of the currently active file.") + "</li>\
+    <li><em>\%directory\%</em> - " + tr("Directory of the currently active file.") + "</li>\
+    <li><em>\%filename\%</em> - " + tr("Name of the currently active file.") + "</li>\
+    <li><em>\%selection\%</em> - " + tr("Currently selected text.") + "</li>\
+    </ul>");
 
     m_command = new QLineEdit(this);
     m_status = new QLabel;

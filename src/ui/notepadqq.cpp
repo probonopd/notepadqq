@@ -1,16 +1,17 @@
 #include "include/notepadqq.h"
+
 #include "include/Extensions/extensionsloader.h"
 #include "include/Extensions/runtimesupport.h"
+#include "include/nqqsettings.h"
+
+#include <QCheckBox>
+#include <QDir>
 #include <QFileInfo>
 #include <QMessageBox>
-#include <QDir>
-#include <QCheckBox>
-#include <QSettings>
 
 const QString Notepadqq::version = POINTVERSION;
-const QString Notepadqq::contributorsUrl = "https://github.com/notepadqq/notepadqq/blob/master/CONTRIBUTORS.md";
-const QString Notepadqq::website = "http://notepadqq.altervista.org";
-bool Notepadqq::m_oldQt = false;
+const QString Notepadqq::contributorsUrl = "https://github.com/notepadqq/notepadqq/graphs/contributors";
+const QString Notepadqq::website = "https://notepadqq.com";
 
 QString Notepadqq::copyright()
 {
@@ -50,13 +51,13 @@ QString Notepadqq::extensionToolsPath()
 }
 
 QString Notepadqq::nodejsPath() {
-    QSettings s;
-    return s.value("Extensions/Runtime_Nodejs", "").toString();
+    NqqSettings& s = NqqSettings::getInstance();
+    return s.Extensions.getRuntimeNodeJS();
 }
 
 QString Notepadqq::npmPath() {
-    QSettings s;
-    return s.value("Extensions/Runtime_Npm", "").toString();
+    NqqSettings& s = NqqSettings::getInstance();
+    return s.Extensions.getRuntimeNpm();
 }
 
 QString Notepadqq::fileNameFromUrl(const QUrl &url)
@@ -87,6 +88,24 @@ QSharedPointer<QCommandLineParser> Notepadqq::getCommandLineArgumentsParser(cons
                                          .arg(QCoreApplication::applicationName()));
     parser->addOption(newWindowOption);
 
+    QCommandLineOption setLine({"l", "line"},
+                               QObject::tr("Open file at specified line."),
+                               "line",
+                               "0");
+    parser->addOption(setLine);
+
+    QCommandLineOption setCol({"c", "column"},
+                              QObject::tr("Open file at specified column."),
+                              "column",
+                              "0");
+    parser->addOption(setCol);
+
+    QCommandLineOption allowRootOption("allow-root", QObject::tr("Allows Notepadqq to be run as root."));
+    parser->addOption(allowRootOption);
+
+    QCommandLineOption printDebugOption("print-debug-info", QObject::tr("Print system information for debugging."));
+    parser->addOption(printDebugOption);
+
     parser->addPositionalArgument("urls",
                                  QObject::tr("Files to open."),
                                  "[urls...]");
@@ -94,54 +113,6 @@ QSharedPointer<QCommandLineParser> Notepadqq::getCommandLineArgumentsParser(cons
     parser->process(arguments);
 
     return parser;
-}
-
-bool Notepadqq::oldQt()
-{
-    return m_oldQt;
-}
-
-void Notepadqq::setOldQt(bool oldQt)
-{
-    m_oldQt = oldQt;
-}
-
-void Notepadqq::showQtVersionWarning(bool showCheckBox, QWidget *parent)
-{
-    QSettings settings;
-    QString dir = QDir::toNativeSeparators(QDir::homePath() + "/Qt");
-    QString altDir = "/opt/Qt";
-
-    QMessageBox msgBox(parent);
-    msgBox.setWindowTitle(QCoreApplication::applicationName());
-    msgBox.setIcon(QMessageBox::Warning);
-    msgBox.setText("<h3>" + QObject::tr("You are using an old version of Qt (%1)").arg(qVersion()) + "</h3>");
-    msgBox.setInformativeText("<html><body>"
-        "<p>" + QObject::tr("Notepadqq will try to do its best, but <b>some things will not work properly</b>.") + "</p>" +
-        QObject::tr(
-            "Install a newer Qt version (&ge; %1) from the official repositories "
-            "of your distribution.<br><br>"
-            "If it's not available, download Qt (&ge; %1) from %2 and install it to \"%3\" or to \"%4\".").
-                  arg("5.3").
-                  arg("<nobr><a href=\"http://qt-project.org/\">http://qt-project.org/</a></nobr>").
-                  arg("<nobr>" + dir + "</nobr>").
-                  arg("<nobr>" + altDir + "</nobr>") +
-        "</body></html>");
-
-    QCheckBox *chkDontShowAgain;
-
-    if (showCheckBox) {
-        chkDontShowAgain = new QCheckBox();
-        chkDontShowAgain->setText(QObject::tr("Don't show me this warning again"));
-        msgBox.setCheckBox(chkDontShowAgain);
-    }
-
-    msgBox.exec();
-
-    if (showCheckBox) {
-        settings.setValue("checkQtVersionAtStartup", !chkDontShowAgain->isChecked());
-        chkDontShowAgain->deleteLater();
-    }
 }
 
 QString Notepadqq::extensionsPath()
@@ -173,4 +144,21 @@ QList<QString> Notepadqq::translations()
     }
 
     return out;
+}
+
+void Notepadqq::printEnvironmentInfo()
+{
+    qDebug() << QString("Notepadqq: %1").arg(POINTVERSION).toStdString().c_str();
+#ifdef BUILD_SNAP
+    qDebug() << "Snap build: yes";
+#else
+    qDebug() << "Snap build: no";
+#endif
+    qDebug() << QString("Qt: %1 - %2").arg(qVersion(), QSysInfo::buildAbi()).toStdString().c_str();
+    qDebug() << QString("OS: %1 (%2 %3)")
+                    .arg(QSysInfo::prettyProductName(), QSysInfo::productType(), QSysInfo::productVersion())
+                    .toStdString()
+                    .c_str();
+    qDebug() << QString("CPU: %1").arg(QSysInfo::currentCpuArchitecture()).toStdString().c_str();
+    qDebug() << QString("Kernel: %1 - %2").arg(QSysInfo::kernelType(), QSysInfo::kernelVersion()).toStdString().c_str();
 }

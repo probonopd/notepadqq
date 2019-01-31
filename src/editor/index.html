@@ -4,11 +4,15 @@
     <meta charset="utf-8">
     <title>Notepadqq</title>
 
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
     <script src="libs/jquery/jquery.min.js"></script>
     <script src="libs/codemirror/lib/codemirror.js"></script>
     <link rel="stylesheet" href="libs/codemirror/lib/codemirror.css">
     <link rel="stylesheet" href="libs/codemirror/addon/fold/foldgutter.css">
     <link rel="stylesheet" href="libs/codemirror/addon/hint/show-hint.css">
+
+    <!-- Load this first to avoid CodeMirror.defineSimpleMode errors -->
+    <script src="libs/codemirror/addon/mode/simple.js"></script>
 
     <!-- MODES -->
     <script src="libs/codemirror/mode/apl/apl.js"></script>
@@ -156,9 +160,11 @@
 
     <script src="init.js"></script>
     <script src="classes/UiDriver.js"></script>
-    <script src="classes/Languages.js"></script>
     <script src="classes/Printer.js"></script>
-    <script src="app.js"></script>
+
+    <!-- Run the entry point -->
+    <script data-main="./app" src="libs/require.js/require.js"></script>
+
     <link rel="stylesheet" href="styles/app.css">
     <link rel="stylesheet" href="styles/app-print.css" />
   </head>

@@ -1,11 +1,17 @@
 #ifndef TOPEDITORCONTAINER_H
 #define TOPEDITORCONTAINER_H
 
+#include "EditorNS/editor.h"
+#include "editortabwidget.h"
+
 #include <QSplitter>
 #include <QWheelEvent>
-#include "editortabwidget.h"
-#include "EditorNS/editor.h"
+#include <QtPromise>
+
 #include <functional>
+#include <vector>
+
+using namespace QtPromise;
 
 /**
  * @brief Contains one or more EditorTabWidgets. This class
@@ -45,6 +51,41 @@ public:
      */
     void forEachEditor(bool backwardIndexes, std::function<bool (const int, const int, EditorTabWidget *, Editor *)> callback);
     void forEachEditor(std::function<bool (const int, const int, EditorTabWidget *, Editor *)> callback);
+
+    /**
+     * @brief Executes the specified asynchronous function for each editor in this container, in order.
+     *        Every callback can be asynchronous and should call goOn() as soon as it finishes to invoke
+     *        the next iteration. If stop() is called, the loop is stopped. Never call both goOn() and
+     *        stop() from the same callback.
+     * @param backwardIndices True if you want to get the items in the reverse order
+     *                        (useful for example if you're deleting the items
+     *                         while iterating over them).
+     * @param callback
+     * @return Returns a promise which is resolved when all the callbacks have finished.
+     */
+    QPromise<void> forEachEditorAsync(bool backwardIndices, std::function<void (const int tabWidgetId, const int editorId, EditorTabWidget *tabWidget, Editor *editor, std::function<void()> goOn, std::function<void()> stop)> callback);
+
+    /**
+     * @brief Executes the specified asynchronous function for each editor in this container, concurrently.
+     *        Every callback can be asynchronous and should call done() when it finishes.
+     * @param callback
+     * @return Returns a promise which is resolved when all the callbacks have called done().
+     */
+    QPromise<void> forEachEditorConcurrent(std::function<void (const int tabWidgetId, const int editorId, EditorTabWidget *tabWidget, Editor *editor, std::function<void()> done)> callback);
+
+    std::vector<Editor*> getOpenEditors();
+
+    /**
+     * @brief Returns the number of editors in all of the TopEditorWidget's children.
+     */
+    int getNumEditors();
+
+    /**
+     * @brief Disconnects all the signals emitted by all the tabWidgets owned by this object.
+     *        This method must only be called on exit, as the TopEditorContainer will become
+     *        unusable.
+     */
+    void disconnectAllTabWidgets();
 
 private:
     EditorTabWidget *m_currentTabWidget;

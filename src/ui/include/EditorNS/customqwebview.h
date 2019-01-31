@@ -1,13 +1,13 @@
 #ifndef CUSTOMQWEBVIEW_H
 #define CUSTOMQWEBVIEW_H
 
-#include <QWebView>
+#include <QWebEngineView>
 #include <QWheelEvent>
 
 namespace EditorNS
 {
 
-    class CustomQWebView : public QWebView
+    class CustomQWebView : public QWebEngineView
     {
         Q_OBJECT
     public:
@@ -16,12 +16,25 @@ namespace EditorNS
     signals:
         void mouseWheel(QWheelEvent *ev);
         void urlsDropped(QList<QUrl> urls);
-    public slots:
+        void gotFocus();
 
     protected:
-        void wheelEvent(QWheelEvent *ev);
-        void keyPressEvent(QKeyEvent *ev);
-        void dropEvent(QDropEvent *ev);
+        void wheelEvent(QWheelEvent *ev) override;
+        void keyPressEvent(QKeyEvent *ev) override;
+        void dropEvent(QDropEvent *ev) override;
+        void focusInEvent(QFocusEvent* event) override;
+        void contextMenuEvent(QContextMenuEvent* ev) override;
+
+        /*
+         * QWebEngineView eats various types of events. Since we still need them
+         * we'll have to install a custom event filter on the WebView's child delegate
+         * QOpenGLWidget.
+         */
+        bool event(QEvent* evt) override;
+        bool eventFilter(QObject *obj, QEvent *ev) override;
+
+    private:
+        QObject *childObj = nullptr;
     };
 
 }

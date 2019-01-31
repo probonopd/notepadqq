@@ -1,24 +1,23 @@
 #include "include/Search/searchstring.h"
+
 #include <QRegularExpression>
 
-QString SearchString::toRaw(const QString &data, const SearchHelpers::SearchMode &searchMode, const SearchHelpers::SearchOptions &searchOptions)
+QString SearchString::format(QString regex, SearchHelpers::SearchMode searchMode, const SearchHelpers::SearchOptions& searchOptions)
 {
-    QString rawSearch = data;
-    if (searchMode == SearchHelpers::SearchMode::SpecialChars) {
-        rawSearch = toRegex(data, searchOptions.MatchWholeWord);
-        rawSearch = rawSearch.replace("\\\\", "\\");
-    } else if (searchMode == SearchHelpers::SearchMode::PlainText){
-        rawSearch = toRegex(data, searchOptions.MatchWholeWord);
+    // CodeMirror only knows regex search. So if user asks for "regular" search
+    // we'll have to escape all regex characters.
+    if (searchMode != SearchHelpers::SearchMode::Regex) {
+        regex = QRegularExpression::escape(regex);
     }
-    return rawSearch;
-}
 
-QString SearchString::toRegex(const QString &data, bool matchWholeWord)
-{
-    QString regex = QRegularExpression::escape(data);
-    if (matchWholeWord) {
+    if (searchOptions.MatchWholeWord) {
         regex = "\\b" + regex + "\\b";
     }
+
+    if (searchMode == SearchHelpers::SearchMode::SpecialChars) {
+        regex = regex.replace("\\\\", "\\");
+    }
+
     return regex;
 }
 
@@ -26,9 +25,10 @@ QString SearchString::unescape(const QString &data)
 { 
     const int dataLength = data.size();
     QString unescaped;
-    QChar c;
+    unescaped.reserve(dataLength);
+
     for (int i = 0; i < dataLength; i++) {
-        c = data[i];
+        QChar c = data[i];
         if (c == '\\' && i != dataLength) {
             i++;
             if (data[i] == 'a') c = '\a';
@@ -52,4 +52,3 @@ QString SearchString::unescape(const QString &data)
     }
     return unescaped;
 }
-

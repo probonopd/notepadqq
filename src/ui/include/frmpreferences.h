@@ -1,12 +1,12 @@
 #ifndef FRMPREFERENCES_H
 #define FRMPREFERENCES_H
 
-#include <QDialog>
-#include <QTreeWidgetItem>
-#include <QTableWidgetItem>
-#include "include/topeditorcontainer.h"
 #include "include/keygrabber.h"
 #include "include/nqqsettings.h"
+#include "include/topeditorcontainer.h"
+
+#include <QDialog>
+#include <QTreeWidgetItem>
 
 namespace Ui {
 class frmPreferences;
@@ -47,6 +47,20 @@ private slots:
 
     void on_buttonBox_clicked(QAbstractButton *button);
 
+    void on_chkSearch_SaveHistory_toggled(bool checked);
+
+    void on_btnToolbarAdd_clicked();
+
+    void on_btnToolbarRemove_clicked();
+
+    void on_btnToolbarUp_clicked();
+
+    void on_btnToolbarDown_clicked();
+
+    void on_btnToolbarReset_clicked();
+
+    void on_chkAutosave_toggled(bool checked);
+
 private:
     /**
      * @brief s_lastSelectedTab Contains the index of the last selected preferences tab. Default is 0.
@@ -76,6 +90,8 @@ private:
     void saveTranslation();
     void loadShortcuts();
     void saveShortcuts();
+    void loadToolbar();
+    void saveToolbar();
 
     /**
      * @brief applySettings Applies all user-set settings.

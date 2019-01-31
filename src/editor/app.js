@@ -34,26 +34,17 @@ UiDriver.registerEventHandler("C_FUN_IS_CLEAN", function(msg, data, prevReturn) 
     return isCleanOrForced(changeGeneration);
 });
 
+UiDriver.registerEventHandler("C_FUN_GET_HISTORY_GENERATION", function(msg, data, prevReturn) {
+    return editor.getHistoryGeneration();
+});
+
 UiDriver.registerEventHandler("C_CMD_SET_LANGUAGE", function(msg, data, prevReturn) {
-    Languages.setLanguage(editor, data);
-});
+    editor.setOption('mode', data);
 
-/*
-    Sets the language by finding the more appropriate one for the file name.
-    E.g. path/to/worker.js => JavaScript
-    If nothing can be inferred from the file name, it looks at the editor content to see if it
-    can guess something (eg. files starting with #! are probably shell scripts).
-*/
-UiDriver.registerEventHandler("C_FUN_SET_LANGUAGE_FROM_FILENAME", function(msg, data, prevReturn) {
-    var lang = Languages.languageByFileName(editor, data);
-    Languages.setLanguage(editor, lang);
-    return lang;
-});
-
-/* Returns the id of the current language, and its data */
-UiDriver.registerEventHandler("C_FUN_GET_CURRENT_LANGUAGE", function(msg, data, prevReturn) {
-    var langId = Languages.currentLanguage(editor);
-    return {id: langId, lang: Languages.languages[langId]};
+    // If math rendering is enable, refresh the rendering
+    require(['features/latex/latex'], function(math) {
+        math.refresh(editor);
+    });
 });
 
 UiDriver.registerEventHandler("C_CMD_SET_INDENTATION_MODE", function(msg, data, prevReturn) {
@@ -281,7 +272,7 @@ function applyReusedGroups(replacement, groups){
         //takes care of non-consecutive group reuse tokens,
         //i.e. in "\1 \3" with no "\2", the "\3" is ignored 
         groupToReuse = groups[iReuseGroup];
-        replacement = replacement.replace(new RegExp("\\\\"+iReuseGroup), groupToReuse);
+        replacement = replacement.replace(new RegExp("\\\\"+iReuseGroup, "g"), groupToReuse);
     }
     var groupReuseRegex = /\\([1-9])/g;
     //take care of all non-matched group reuse tokens (replace with empty string)
@@ -551,6 +542,25 @@ UiDriver.registerEventHandler("C_CMD_TRIM_LEADING_SPACE", function(msg, data, pr
     editLines(function (x) { return x.replace(/^\s+/, ""); });
 });
 
+UiDriver.registerEventHandler("C_CMD_ENABLE_MATH", function(msg, data, prevReturn) {
+    require(['features/latex/latex'], function(math) {
+        if (data) {
+            math.enable(editor);
+        } else {
+            math.disable(editor);
+        }
+    });
+})
+
+UiDriver.registerEventHandler("C_FUN_IS_MATH_ENABLED", function(msg, data, prevReturn) {
+    if (!require.defined('features/latex/latex')) {
+        return false
+    }
+
+    var math = require('features/latex/latex');
+    return math.isEnabled();
+})
+
 var tabToSpaceCounter = 0;
 function tabToSpaceHelper(match, offset, tabSize) {
     /*
@@ -657,6 +667,24 @@ UiDriver.registerEventHandler("C_CMD_EOL_TO_SPACE", function(msg, data, prevRetu
     editor.setValue(text.replace(/\n/gm," "));
 });
 
+function getDocumentInfo()
+{
+    var map = new Object();
+    var selections = editor.getSelection("\n");
+    var cursor = editor.getCursor("head");
+    map["cursor"] = [cursor.line, cursor.ch];
+    map["selections"] = [selections.split(/\r\n|\r|\n/).length, selections.length];
+    map["content"] = [editor.lineCount(), editor.getValue().length];
+    return map;
+}
+
+/**
+* @brief Replies to the request for document information. 
+*/
+UiDriver.registerEventHandler("C_CMD_GET_DOCUMENT_INFO", function(msg, data, prevReturn) {
+    UiDriver.sendMessage("J_EVT_DOCUMENT_INFO", getDocumentInfo());
+});
+
 $(document).ready(function () {
     editor = CodeMirror($(".editor")[0], {
         lineNumbers: true,
@@ -702,13 +730,15 @@ $(document).ready(function () {
         UiDriver.sendMessage("J_EVT_CLEAN_CHANGED", isCleanOrForced(changeGeneration));
     });
 
-    editor.on("cursorActivity", function(instance, changeObj) {
-        UiDriver.sendMessage("J_EVT_CURSOR_ACTIVITY");
+    editor.on("cursorActivity", function(instance) {
+        UiDriver.sendMessage("J_EVT_CURSOR_ACTIVITY", getDocumentInfo());
     });
 
     editor.on("focus", function() {
         UiDriver.sendMessage("J_EVT_GOT_FOCUS");
     });
+
+    editor.focus();
 
     UiDriver.sendMessage("J_EVT_READY", null);
 });

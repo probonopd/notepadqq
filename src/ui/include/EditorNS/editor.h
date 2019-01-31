@@ -2,12 +2,23 @@
 #define EDITOR_H
 
 #include "include/EditorNS/customqwebview.h"
+#include "include/EditorNS/languageservice.h"
+
 #include <QObject>
-#include <QVariant>
 #include <QQueue>
-#include <QWheelEvent>
-#include <QVBoxLayout>
 #include <QTextCodec>
+#include <QVBoxLayout>
+#include <QVariant>
+#include <QWheelEvent>
+#include <QtPromise>
+#include <QPrinter>
+
+#include <functional>
+#include <future>
+
+class EditorTabWidget;
+
+using namespace QtPromise;
 
 namespace EditorNS
 {
@@ -30,18 +41,7 @@ namespace EditorNS
     public:
         JsToCppProxy(QObject *parent) : QObject(parent) { }
 
-        /**
-             * @brief Set C++-to-JS message data. This method should
-             *        be called from the C++ part
-             * @param data
-             */
-        void setMsgData(QVariant data) { m_msgData = data; }
-
-        /**
-             * @brief Get the message data set by setMsgData(). This
-             *        method should be called from the JavaScript part.
-             */
-        Q_INVOKABLE QVariant getMsgData() { return m_msgData; }
+        Q_INVOKABLE void receiveMessage(QString msg, QVariant data) { emit messageReceived(msg, data); }
 
     signals:
         /**
@@ -50,6 +50,8 @@ namespace EditorNS
              * @param data Message data
              */
         void messageReceived(QString msg, QVariant data);
+
+        void messageReceivedByJs(QString msg, QVariant data);
     };
 
 
@@ -74,6 +76,10 @@ namespace EditorNS
         struct Theme {
             QString name;
             QString path;
+            Theme(const QString& name = "default", const QString& path = "") {
+                this->name = name;
+                this->path = path;
+            }
         };
 
         explicit Editor(const Theme &theme, QWidget *parent = 0);
@@ -87,12 +93,6 @@ namespace EditorNS
         static Editor *getNewEditorUnmanagedPtr(QWidget *parent);
 
         static void invalidateEditorBuffer();
-
-        struct LanguageGreater {
-            inline bool operator()(const QMap<QString, QString> &v1, const QMap<QString, QString> &v2) const {
-                return v1.value("name").toLower() < v2.value("name").toLower();
-            }
-        };
 
         struct Cursor {
             int line;
@@ -149,6 +149,8 @@ namespace EditorNS
 
         /**
              * @brief Remove the focus from the editor.
+             *
+             * @param widgetOnly only clear the focus on the actual widget
              */
         Q_INVOKABLE void clearFocus();
 
@@ -156,21 +158,21 @@ namespace EditorNS
              * @brief Set the file name associated with this editor
              * @param filename full path of the file
              */
-        Q_INVOKABLE void setFileName(const QUrl &filename);
+        Q_INVOKABLE void setFilePath(const QUrl &filename);
 
         /**
              * @brief Get the file name associated with this editor
              * @return
              */
-        Q_INVOKABLE QUrl fileName() const;
+        Q_INVOKABLE QUrl filePath() const;
 
         Q_INVOKABLE bool fileOnDiskChanged() const;
         Q_INVOKABLE void setFileOnDiskChanged(bool fileOnDiskChanged);
 
-        enum selectMode {
-            selectMode_cursorBefore,
-            selectMode_cursorAfter,
-            selectMode_selected
+        enum class SelectMode {
+            Before,
+            After,
+            Selected
         };
 
         void insertBanner(QWidget *banner);
@@ -178,10 +180,16 @@ namespace EditorNS
         void removeBanner(QString objectName);
 
         // Lower-level message wrappers:
+        QPromise<bool> isCleanP();
         Q_INVOKABLE bool isClean();
-        Q_INVOKABLE void markClean();
-        Q_INVOKABLE void markDirty();
-        QList<QMap<QString, QString> > languages();
+        Q_INVOKABLE QPromise<void> markClean();
+        Q_INVOKABLE QPromise<void> markDirty();
+
+        /**
+         * @brief Returns an integer that denotes the editor's history state. Making changes to
+         *        the contents increments the integer while reverting changes decrements it again.
+         */
+        Q_INVOKABLE QPromise<int> getHistoryGeneration();
 
         /**
          * @brief Set the language to use for the editor.
@@ -189,10 +197,11 @@ namespace EditorNS
          *        the default configuration for the specified language.
          * @param language Language id
          */
+        Q_INVOKABLE void setLanguage(const Language* language);
         Q_INVOKABLE void setLanguage(const QString &language);
-        Q_INVOKABLE QString setLanguageFromFileName(QString fileName);
-        Q_INVOKABLE QString setLanguageFromFileName();
-        Q_INVOKABLE void setValue(const QString &value);
+        Q_INVOKABLE void setLanguageFromFilePath(const QString& filePath);
+        Q_INVOKABLE void setLanguageFromFilePath();
+        Q_INVOKABLE QPromise<void> setValue(const QString &value);
         Q_INVOKABLE QString value();
 
         /**
@@ -213,21 +222,29 @@ namespace EditorNS
         Q_INVOKABLE void setSmartIndent(bool enabled);
         Q_INVOKABLE qreal zoomFactor() const;
         Q_INVOKABLE void setZoomFactor(const qreal &factor);
-        Q_INVOKABLE void setSelectionsText(const QStringList &texts, selectMode mode);
+        Q_INVOKABLE void setSelectionsText(const QStringList &texts, SelectMode mode);
         Q_INVOKABLE void setSelectionsText(const QStringList &texts);
-        Q_INVOKABLE QString language();
+        const Language* getLanguage() { return m_currentLanguage; }
         Q_INVOKABLE void setLineWrap(const bool wrap);
         Q_INVOKABLE void setEOLVisible(const bool showeol);
         Q_INVOKABLE void setWhitespaceVisible(const bool showspace);
+        Q_INVOKABLE void setMathEnabled(const bool enabled);
 
         /**
          * @brief Get the current cursor position
          * @return a <line, column> pair.
          */
         QPair<int, int> cursorPosition();
+        QPromise<QPair<int, int>> cursorPositionP();
         void setCursorPosition(const int line, const int column);
         void setCursorPosition(const QPair<int, int> &position);
         void setCursorPosition(const Cursor &cursor);
+
+        /**
+         * @brief Tells the editor that mainwindow needs an update on the contents,
+         *        selection, and cursor position of the current document
+         */
+        void requestDocumentInfo();
 
         /**
          * @brief Get the current scroll position
@@ -272,52 +289,70 @@ namespace EditorNS
          * @brief Returns the currently selected texts.
          * @return
          */
-        Q_INVOKABLE QStringList selectedTexts();
+        Q_INVOKABLE QPromise<QStringList> selectedTexts();
 
         void setOverwrite(bool overwrite);
-        void forceRender(QSize size);
         void setTabsVisible(bool visible);
 
         /**
          * @brief Detect the indentation mode used within the current document.
-         * @return
+         * @return a pair whose first element is the document indentation, that is
+         *         significative only if the second element ("found") is true.
          */
-        Editor::IndentationMode detectDocumentIndentation(bool *found = nullptr);
+        QPromise<std::pair<IndentationMode, bool>> detectDocumentIndentation();
         Editor::IndentationMode indentationMode();
+        QPromise<IndentationMode> indentationModeP();
 
-        QString getCurrentWord();
+        QPromise<QString> getCurrentWord();
 
         void setSelection(int fromLine, int fromCol, int toLine, int toCol);
 
-        int lineCount();
+        QPromise<int> lineCount();
 
     private:
+        friend class ::EditorTabWidget;
+
+        struct AsyncReply {
+            unsigned int id;
+            QString message;
+            std::shared_ptr<std::promise<QVariant>> value;
+            std::function<void (QVariant)> callback;
+        };
+
+        std::list<AsyncReply> asyncReplies;
+
+        // These functions should only be used by EditorTabWidget to manage the tab's title. This works around
+        // KDE's habit to automatically modify QTabWidget's tab titles to insert shortcut sequences (like &1).
+        QString tabName() const;
+        void setTabName(const QString& name);
+
         static QQueue<Editor*> m_editorBuffer;
         QVBoxLayout *m_layout;
         CustomQWebView *m_webView;
         JsToCppProxy *m_jsToCppProxy;
-        QUrl m_fileName = QUrl();
+        QUrl m_filePath = QUrl();
+        QString m_tabName;
         bool m_fileOnDiskChanged = false;
         bool m_loaded = false;
         QString m_endOfLineSequence = "\n";
         QTextCodec *m_codec = QTextCodec::codecForName("UTF-8");
         bool m_bom = false;
         bool m_customIndentationMode = false;
-
+        const Language* m_currentLanguage = nullptr;
         inline void waitAsyncLoad();
         QString jsStringEscape(QString str) const;
 
         void fullConstructor(const Theme &theme);
 
-        void setIndentationMode(const bool useTabs, const int size);
-        void setIndentationMode(QString language);
+        QPromise<void> setIndentationMode(const bool useTabs, const int size);
+        QPromise<void> setIndentationMode(const Language*);
 
     private slots:
-        void on_javaScriptWindowObjectCleared();
         void on_proxyMessageReceived(QString msg, QVariant data);
 
     signals:
         void messageReceived(QString msg, QVariant data);
+        void asyncReplyReceived(unsigned int id, QString msg, QVariant data);
         void gotFocus();
         void mouseWheel(QWheelEvent *ev);
         void urlsDropped(QList<QUrl> urls);
@@ -325,7 +360,8 @@ namespace EditorNS
 
         // Pre-interpreted messages:
         void contentChanged();
-        void cursorActivity();
+        void cursorActivity(QMap<QString, QVariant> data);
+        void documentInfoRequested(QMap<QString, QVariant> data);
         void cleanChanged(bool isClean);
         void fileNameChanged(const QUrl &oldFileName, const QUrl &newFileName);
 
@@ -340,10 +376,34 @@ namespace EditorNS
     public slots:
         void sendMessage(const QString &msg, const QVariant &data);
         void sendMessage(const QString &msg);
-        QVariant sendMessageWithResult(const QString &msg, const QVariant &data);
-        QVariant sendMessageWithResult(const QString &msg);
 
-        void print(QPrinter *printer);
+        /**
+         * @brief asyncSendMessageWithResult
+         * @param msg
+         * @param data
+         * @param callback When set, the result is returned asynchronously via the provided function.
+         *                 If set, you should NOT use the return value of this method.
+         * @return
+         */
+        QPromise<QVariant> asyncSendMessageWithResultP(const QString &msg, const QVariant &data);
+        QPromise<QVariant> asyncSendMessageWithResultP(const QString &msg);
+
+        std::shared_future<QVariant> asyncSendMessageWithResult(const QString &msg, const QVariant &data, std::function<void(QVariant)> callback = 0);
+        std::shared_future<QVariant> asyncSendMessageWithResult(const QString &msg, std::function<void(QVariant)> callback = 0);
+
+        /**
+         * @brief Print the editor. As of Qt 5.11, it produces low-quality, non-vector graphics with big dimension.
+         * @param printer
+         */
+        void print(std::shared_ptr<QPrinter> printer);
+
+        /**
+         * @brief Returns the content of the editor layed out in a pdf file that can be directly saved to disk.
+         *        This method produces light, vector graphics.
+         * @param pageLayout
+         * @return
+         */
+        QPromise<QByteArray> printToPdf(const QPageLayout &pageLayout = QPageLayout(QPageSize(QPageSize::A4), QPageLayout::Portrait, QMarginsF()));
     };
 
 }

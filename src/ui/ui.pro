@@ -4,9 +4,9 @@
 #
 #-------------------------------------------------
 
-QT       += core gui svg widgets webkitwidgets printsupport network
-
-CONFIG += c++11
+QT       += core gui svg widgets printsupport network webenginewidgets webchannel websockets dbus
+CONFIG += c++14 link_pkgconfig
+PKGCONFIG += uchardet
 
 !macx: TARGET = notepadqq-bin
 macx: TARGET = notepadqq
@@ -43,7 +43,8 @@ isEmpty(DESTDIR) {
 }
 
 isEmpty(LRELEASE) {
-    !macx: LRELEASE = qtchooser -run-tool=lrelease -qt=5
+    !macx:!haiku: LRELEASE = qtchooser -run-tool=lrelease -qt=5
+    haiku: LRELEASE = lrelease
     macx: LRELEASE = lrelease
 }
 
@@ -59,6 +60,8 @@ INSTALLFILESDIR = ../../support_files
 
 CURRFILE = $$PWD/ui.pro
 
+include(libs/qtpromise/qtpromise.pri)
+
 SOURCES += main.cpp\
     mainwindow.cpp \
     topeditorcontainer.cpp \
@@ -73,19 +76,16 @@ SOURCES += main.cpp\
     EditorNS/bannerbasicmessage.cpp \
     EditorNS/bannerfileremoved.cpp \
     EditorNS/customqwebview.cpp \
+    EditorNS/languageservice.cpp \
     clickablelabel.cpp \
     frmencodingchooser.cpp \
     EditorNS/bannerindentationdetected.cpp \
     frmindentationmode.cpp \
     singleapplication.cpp \
     localcommunication.cpp \
-    Search/filesearchresultswidget.cpp \
     Search/frmsearchreplace.cpp \
-    Search/searchinfilesworker.cpp \
     Search/searchstring.cpp \
-    Search/replaceinfilesworker.cpp \
-    Search/dlgsearching.cpp \
-    Search/searchresultsitemdelegate.cpp \
+    Search/advancedsearchdock.cpp \
     Extensions/extension.cpp \
     frmlinenumberchooser.cpp \
     Extensions/extensionsserver.cpp \
@@ -102,7 +102,13 @@ SOURCES += main.cpp\
     Sessions/sessions.cpp \
     Sessions/persistentcache.cpp \
     nqqsettings.cpp \  
-    nqqrun.cpp
+    nqqrun.cpp \
+    Search/filesearcher.cpp \
+    Search/filereplacer.cpp \
+    Search/searchobjects.cpp \
+    Search/searchinstance.cpp \
+    stats.cpp \
+    Sessions/backupservice.cpp
 
 HEADERS  += include/mainwindow.h \
     include/topeditorcontainer.h \
@@ -120,18 +126,14 @@ HEADERS  += include/mainwindow.h \
     include/clickablelabel.h \
     include/frmencodingchooser.h \
     include/EditorNS/bannerindentationdetected.h \
+    include/EditorNS/languageservice.h \
     include/frmindentationmode.h \
     include/singleapplication.h \
     include/localcommunication.h \
-    include/Search/filesearchresultswidget.h \
-    include/Search/filesearchresult.h \
     include/Search/frmsearchreplace.h \
-    include/Search/searchinfilesworker.h \
-    include/Search/replaceinfilesworker.h \
+    include/Search/advancedsearchdock.h \
     include/Search/searchhelpers.h \
     include/Search/searchstring.h \
-    include/Search/dlgsearching.h \
-    include/Search/searchresultsitemdelegate.h \
     include/Extensions/extension.h \
     include/frmlinenumberchooser.h \
     include/Extensions/extensionsserver.h \
@@ -148,7 +150,13 @@ HEADERS  += include/mainwindow.h \
     include/Sessions/sessions.h \
     include/Sessions/persistentcache.h \
     include/nqqsettings.h \
-    include/nqqrun.h
+    include/nqqrun.h \
+    include/Search/filesearcher.h \
+    include/Search/searchobjects.h \
+    include/Search/filereplacer.h \
+    include/Search/searchinstance.h \
+    include/stats.h \
+    include/Sessions/backupservice.h
 
 FORMS    += mainwindow.ui \
     frmabout.ui \
@@ -167,23 +175,33 @@ ICON = ../../images/notepadqq.icns
 
 TRANSLATIONS = \
     ../translations/notepadqq_de.ts \
+    ../translations/notepadqq_es.ts \
     ../translations/notepadqq_fr.ts \
     ../translations/notepadqq_hu.ts \
     ../translations/notepadqq_it.ts \
+    ../translations/notepadqq_ja.ts \
     ../translations/notepadqq_pl.ts \
+    ../translations/notepadqq_pt.ts \
     ../translations/notepadqq_ru.ts \
     ../translations/notepadqq_sl.ts \
-    ../translations/notepadqq_sv.ts
+    ../translations/notepadqq_sv.ts \
+    ../translations/notepadqq_uk.ts \
+    ../translations/notepadqq_zh.ts 
 
 QMAKE_CLEAN += \
     ../translations/notepadqq_de.qm \
+    ../translations/notepadqq_es.qm \
     ../translations/notepadqq_fr.qm \
     ../translations/notepadqq_hu.qm \
     ../translations/notepadqq_it.qm \
+    ../translations/notepadqq_ja.qm \
     ../translations/notepadqq_pl.qm \
+    ../translations/notepadqq_pt.qm \
     ../translations/notepadqq_ru.qm \
     ../translations/notepadqq_sl.qm \
-    ../translations/notepadqq_sv.qm
+    ../translations/notepadqq_sv.qm \
+    ../translations/notepadqq_uk.qm \
+    ../translations/notepadqq_zh.qm
 
 
 # Build translations so that qmake doesn't complain about missing files in resources.qrc
@@ -222,6 +240,8 @@ unix:!macx {
     QMAKE_EXTRA_TARGETS += launchTarget
     PRE_TARGETDEPS += make_launch
 }
+
+macx: QMAKE_INFO_PLIST = ../../support_files/launch/Info.plist.app
 
 ### INSTALL ###
 unix:!macx {
@@ -269,6 +289,9 @@ unix:!macx {
 
     shortcuts.path = "$$INSTALL_ROOT$$PREFIX/share/applications/"
     shortcuts.files += "$$INSTALLFILESDIR/shortcuts/notepadqq.desktop"
+    
+    appstream.path = "$$INSTALL_ROOT$$PREFIX/share/metainfo/"
+    appstream.files += "$$INSTALLFILESDIR/notepadqq.appdata.xml"
 
     # == Dummy target used to fix permissions at the end of the install ==
     # A random path. Without one, qmake refuses to create the rule.
@@ -279,7 +302,7 @@ unix:!macx {
     # MAKE INSTALL
     INSTALLS += target \
          icon_h16 icon_h22 icon_h24 icon_h32 icon_h48 icon_h64 icon_h96 icon_h128 icon_h256 icon_h512 icon_hscalable \
-         misc_data launch shortcuts \
+         misc_data launch shortcuts appstream \
          set_permissions
 
 }

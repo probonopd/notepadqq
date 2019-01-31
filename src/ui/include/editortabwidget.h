@@ -1,9 +1,10 @@
 #ifndef EDITORTABWIDGET_H
 #define EDITORTABWIDGET_H
 
+#include "EditorNS/editor.h"
+
 #include <QTabWidget>
 #include <QWheelEvent>
-#include "EditorNS/editor.h"
 
 using namespace EditorNS;
 
@@ -28,10 +29,16 @@ public:
      */
     int transferEditorTab(bool setFocus, EditorTabWidget *source, int tabIndex);
     int findOpenEditorByUrl(const QUrl &filename);
-    Editor *editor(int index);
+    Editor *editor(int index) const;
     QSharedPointer<Editor> editorSharedPtr(int index);
     QSharedPointer<Editor> editorSharedPtr(Editor *editor);
     Editor *currentEditor();
+
+    /**
+     * @brief tabTextFromEditor Returns the tab text of a given Editor, or an empty string if
+     *                          the Editor is not part of this tab widget.
+     */
+    QString tabTextFromEditor(Editor* editor);
 
     qreal zoomFactor() const;
     void setZoomFactor(const qreal &zoomFactor);
@@ -47,11 +54,29 @@ public:
      */
     static void deleteIfEmpty(EditorTabWidget *tabWidget);
 
+    /**
+     * @brief tabText Returns the title of the given Editor or tab index
+     */
+    QString tabText(Editor* editor) const;
+    QString tabText(int index) const;
+
+    /**
+     * @brief tabText Sets the title of the given Editor or tab index
+     */
+    void setTabText(Editor* editor, const QString& text);
+    void setTabText(int index, const QString& text);
+
+    int formerTabIndex();
+
 private:
+
     // Smart pointers to the editors within this TabWidget
     QHash<Editor*, QSharedPointer<Editor>> m_editorPointers;
 
     qreal m_zoomFactor = 1;
+
+    int m_formerTabIndex = 0;
+    int m_mostRecentTabIndex = 0;
 
     void setTabBarHidden(bool yes);
     void setTabBarHighlight(bool yes);
@@ -71,6 +96,7 @@ private slots:
     void on_cleanChanged(bool isClean); 
     void on_editorMouseWheel(QWheelEvent *ev);
     void on_fileNameChanged(const QUrl &, const QUrl &newFileName);
+    void on_currentTabChanged(int index);
 signals:
     void gotFocus();
     void editorAdded(int index);

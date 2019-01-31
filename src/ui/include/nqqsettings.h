@@ -1,10 +1,10 @@
 #ifndef NQQSETTINGS_H
 #define NQQSETTINGS_H
 
+#include <QAction>
+#include <QList>
 #include <QSettings>
 #include <QString>
-#include <QList>
-#include <QAction>
 
 /*
  * The use of NQQ_SETTING creates several functions:
@@ -64,8 +64,12 @@ public:
 
     BEGIN_GENERAL_CATEGORY(General)
         NQQ_SETTING(Localization,                   QString,    "")
-        NQQ_SETTING(CheckVersionAtStartup,          bool,       true)
         NQQ_SETTING(WarnForDifferentIndentation,    bool,       true)
+        NQQ_SETTING(ExitOnLastTabClose,             bool,       false)
+
+        NQQ_SETTING(CollectStatistics,              bool,       false)
+        NQQ_SETTING(LastStatisticTransmissionTime,  qint64,     0)
+        NQQ_SETTING(StatisticsDialogShown,          int,        0)
 
         NQQ_SETTING(WordWrap,                       bool,       false)
         NQQ_SETTING(Zoom,                           qreal,      1.0)
@@ -76,11 +80,16 @@ public:
         NQQ_SETTING(ShowEOL,                        bool,       false)
 
         NQQ_SETTING(RememberTabsOnExit,             bool,       true)
+        NQQ_SETTING(AutosaveInterval,               int,        15)      // In seconds
         NQQ_SETTING(LastSelectedDir,                QString,    ".")
         NQQ_SETTING(LastSelectedSessionDir,         QString,    QString())
         NQQ_SETTING(RecentDocuments,                QList<QVariant>, QList<QVariant>())
+        NQQ_SETTING(WarnIfFileLargerThan,           int,        1)
 
         NQQ_SETTING(NotepadqqVersion,               QString,    QString())
+        NQQ_SETTING(SmartIndentation,               bool,       true)
+        NQQ_SETTING(MathRendering,                  bool,       false)
+        NQQ_SETTING(UseNativeFilePicker,            bool,       true)
     END_CATEGORY(General)
 
     BEGIN_CATEGORY(Appearance)
@@ -92,6 +101,7 @@ public:
 
     BEGIN_CATEGORY(Search)
         NQQ_SETTING(SearchAsIType,  bool,           true)
+        NQQ_SETTING(SaveHistory,    bool,           true)
         NQQ_SETTING(SearchHistory,  QStringList,    QStringList())
         NQQ_SETTING(ReplaceHistory, QStringList,    QStringList())
         NQQ_SETTING(FileHistory,    QStringList,    QStringList())
@@ -112,6 +122,8 @@ public:
     BEGIN_CATEGORY(MainWindow)
         NQQ_SETTING(Geometry,       QByteArray, QByteArray())
         NQQ_SETTING(WindowState,    QByteArray, QByteArray())
+        NQQ_SETTING(MenuBarVisible, bool,       true)
+        NQQ_SETTING(ToolBarItems,   QString,    QString())
     END_CATEGORY(MainWindow)
 
 
