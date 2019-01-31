@@ -1,22 +1,33 @@
 language: cpp
+compiler: gcc
+sudo: require
 dist: trusty
-sudo: required
-os:
-  - linux
-env:
-  - NQQ_VERSION=${TRAVIS_TAG:-${TRAVIS_COMMIT}}
+
 before_install:
-  - sudo apt-get -qq update
-  - sudo apt-get install -y qtbase5-dev libqt5webkit5-dev libqt5svg5-dev qttools5-dev-tools libuchardet-dev
+  - sudo add-apt-repository ppa:beineri/opt-qt-5.10.1-trusty -y
+  - sudo apt-get update -qq
+
+install:
+  - sudo apt-get -y install qt510base qt510webchannel qt510websockets qt510svg qt510tools libuchardet-dev
+  - source /opt/qt*/bin/qt*-env.sh
+
 script:
-  - ./configure PREFIX=/usr && make -j4
-  - # Dear upstream, please change this so that the next line installs to ./appdir rather than to ./src/ui/appdir 
-  - sudo make INSTALL_ROOT=appdir install ; sudo chown -R $USER ./src/ui/appdir ; find ./src/ui/appdir/
-  - mv ./src/ui/appdir/usr/local/* ./src/ui/appdir/usr/ # Dear upstream, please change this so that this is not needed
-  - # "./src/ui-tests/ui-tests"
-  - wget -c "https://github.com/probonopd/linuxdeployqt/releases/download/continuous/linuxdeployqt-continuous-x86_64.AppImage" 
-  - chmod a+x linuxdeployqt*.AppImage
+  - ./configure --prefix=/usr
+  - make -j$(nproc)
+  - make install DESTDIR=$(readlink -f appdir) ; find appdir/
+  - wget -c -nv "https://github.com/probonopd/linuxdeployqt/releases/download/continuous/linuxdeployqt-continuous-x86_64.AppImage"
+  - chmod a+x linuxdeployqt-continuous-x86_64.AppImage
   - unset QTDIR; unset QT_PLUGIN_PATH ; unset LD_LIBRARY_PATH
-  - ./linuxdeployqt*.AppImage ./src/ui/appdir/usr/share/applications/*.desktop -bundle-non-qt-libs -qmldir=$(readlink -f /opt/qt5*/qml/)
-  - ./linuxdeployqt*.AppImage ./src/ui/appdir/usr/share/applications/*.desktop -appimage -qmldir=$(readlink -f /opt/qt5*/qml/)
-  - curl --upload-file ./notepadqq*.AppImage https://transfer.sh/notepadqq-git.$(git rev-parse --short HEAD)-x86_64.AppImage
+  # export VERSION=... # linuxdeployqt uses this for naming the file
+  - ./linuxdeployqt-continuous-x86_64.AppImage appdir/usr/share/applications/*.desktop -appimage
+
+after_success:
+  # find appdir -executable -type f -exec ldd {} \; | grep " => /usr" | cut -d " " -f 2-3 | sort | uniq # for debugging
+  # curl --upload-file APPNAME*.AppImage https://transfer.sh/APPNAME-git.$(git rev-parse --short HEAD)-x86_64.AppImage
+  - wget -c https://github.com/probonopd/uploadtool/raw/master/upload.sh
+  - bash upload.sh APPNAME*.AppImage*
+  
+branches:
+  except:
+    - # Do not build tags that we create when we upload to GitHub Releases
+    - /^(?i:continuous)/
