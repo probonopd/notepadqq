@@ -8,7 +8,7 @@ before_install:
   - sudo apt-get update -qq
 
 install:
-  - sudo apt-get -y install qt510base qt510webchannel qt510websockets qt510svg qt510tools libuchardet-dev
+  - sudo apt-get -y install qt510base qt510webengine qt510webchannel qt510websockets qt510svg qt510tools libuchardet-dev
   - source /opt/qt*/bin/qt*-env.sh
 
 script:
