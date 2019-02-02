@@ -12,7 +12,7 @@ install:
   - source /opt/qt*/bin/qt*-env.sh
 
 script:
-  - ./configure --prefix=/usr --qmake /opt/qt*/bin/qmake # https://github.com/notepadqq/notepadqq/issues/817#issuecomment-459951868
+  - ./configure --prefix=/usr --qmake /opt/qt*/bin/qmake --lrelease /opt/qt*/bin/lrelease # https://github.com/notepadqq/notepadqq/issues/817#issuecomment-459951868
   - make -j$(nproc)
   - make install DESTDIR=$(readlink -f appdir) ; find appdir/
   - wget -c -nv "https://github.com/probonopd/linuxdeployqt/releases/download/continuous/linuxdeployqt-continuous-x86_64.AppImage"
